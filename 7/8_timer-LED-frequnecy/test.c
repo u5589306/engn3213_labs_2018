@@ -52,6 +52,7 @@ void get_str(char* str)
 	unsigned char ch;
 	while ((ch = get_char()) != '\r'){
 		*str++ = ch;
+		put_char(ch);
 	}
 	*str = '\0';
 
@@ -78,14 +79,22 @@ int main(void)
 	while (1)
 	{
 		// do some stuff
-		put_str("Please enter the frequency: ");
-		get_str(data);
-		sprintf(str,"[%d][%s]\r\n", ++i, data);
+		sprintf(str, "[%d] Please enter the frequency: ", ++i);
 		put_str(str);
-		freq = atoi(str);
+
+		get_str(data);
+		// sprintf(str,"[%s]\r\n", data);
+		put_str("\r\n");
+
+		freq = atoi(data);
+		sprintf(str, "interpreted freq: [%d]\r\n", freq);
+		put_str(str);
+
 		rate = (OCR1_VALUE_1HZ / freq);
 		itoa(rate,myrate,10);
-		put_str(myrate);
+		sprintf(str, "rate: [%d] \r\n\n", myrate);
+		put_str(str);
+
 		_delay_ms(1000);
 	}
 }

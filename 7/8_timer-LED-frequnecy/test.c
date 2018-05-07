@@ -95,6 +95,6 @@ int main(void)
 		sprintf(str, "rate: [%d] \r\n\n", myrate);
 		put_str(str);
 
-		_delay_ms(1000);
+		_delay_ms(10);
 	}
 }

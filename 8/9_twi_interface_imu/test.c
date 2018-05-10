@@ -28,20 +28,20 @@ void uart_init()
 {
 	UBRR0H = (unsigned char)(UBRR_VALUE>>8);	// Baud Rate High
 	UBRR0L = (unsigned char)UBRR_VALUE;			// Baud Rate Low
-	UCSR0C = (0<<USBS0)|(3<<UCSZ00);// 1 stop bit, 8 data, No parity (default)
-	UCSR0B |= (1<<RXEN0)|(1<<TXEN0);// Enable receiver and transmitter
+	UCSR0C = (0<<USBS0)|(3<<UCSZ00);			// 1 stop bit, 8 data, No parity (default)
+	UCSR0B |= (1<<RXEN0)|(1<<TXEN0);			// Enable receiver and transmitter
 }
 
 void uart_putchar(unsigned char data)
 {
-	while ( !(UCSR0A & (1<<UDRE0)) );// Wait for transmit buffer empty
-	UDR0 = data;					// Put data into buffer, sends the data
+	while ( !(UCSR0A & (1<<UDRE0)) );			// Wait for transmit buffer empty
+	UDR0 = data;								// Put data into buffer, sends the data
 }
 
 void uart_putstr(char *str)
 {
-	while(*str)						// the value at the str-address is not null (0x00)
-		uart_putchar(*str++);		// send the value and increase the pointer
+	while(*str)						
+		uart_putchar(*str++);		
 }
 
 unsigned char get_char(void)
@@ -88,28 +88,28 @@ int twi_write(uint8_t addr, uint8_t sub_addr, uint8_t ch)
 {
 	// 1. Start
 	TWCR = (1<<TWINT) | (1<<TWSTA) | (1<<TWEN) | (1<<TWEA);
-	while (!(TWCR & (1<<TWINT)));
+	while (!(TWCR & (1<<TWINT)));		// Polling the Control Register (TWCR) to check TWINT-bit
 	if ((TWSR & 0xF8) != TW_START)
 		return -1;
 	
 	// 2. Send SLA+W (Write Mode)
-	TWDR = (addr << 1) | (TW_WRITE);	// SLA+W
-	TWCR = (1<<TWINT)|(1<<TWEN);		// Start transmission
-	while (!(TWCR & (1<<TWINT)));
+	TWDR = (addr << 1) | (TW_WRITE);	// Shift the SLA by one-bit and add Write-bit (0)
+	TWCR = (1<<TWINT)|(1<<TWEN);		// Clear the TWINT-bit by writing '1' and start transmission
+	while (!(TWCR & (1<<TWINT)));		// Polling the Control Register (TWCR) to check TWINT-bit
 	if ((TWSR & 0xF8) != TW_MT_SLA_ACK)
 		return -2;
 	
 	//	3. Send Data #1 (sub-address)
-	TWDR = sub_addr;					// Data (Sub-address)
-	TWCR = (1<<TWINT)|(1<<TWEN);		// Start transmission
-	while (!(TWCR & (1<<TWINT)));
+	TWDR = sub_addr;					// Data #1 (sub-address)
+	TWCR = (1<<TWINT)|(1<<TWEN);		// Clear the TWINT-bit by writing '1' and start transmission
+	while (!(TWCR & (1<<TWINT)));		// Polling the Control Register (TWCR) to check TWINT-bit
 	if ((TWSR & 0xF8) != TW_MT_DATA_ACK)
 		return -3;
 
 	//	4. Send Data #2 (actual data)
-	TWDR = ch;							// Data (at the sub-address register)
-	TWCR = (1<<TWINT)|(1<<TWEN);		// Start transmission
-	while (!(TWCR & (1<<TWINT)));
+	TWDR = ch;							// Data #2 (a byte to write at the sub-address)
+	TWCR = (1<<TWINT)|(1<<TWEN);		// Clear the TWINT-bit by writing '1' and start transmission
+	while (!(TWCR & (1<<TWINT)));		// Polling the Control Register (TWCR) to check TWINT-bit
 	if ((TWSR & 0xF8) != TW_MT_DATA_ACK)
 		return -4;
 
@@ -147,7 +147,7 @@ int twi_read(uint8_t addr, uint8_t sub_addr, uint8_t *data, uint8_t size)
 	
 	// 3. Send Data #1 (sub-address)
 	if (size>1)
-		sub_addr |= 0x80;
+		sub_addr |= 0x80;			// This is specific to Magnetometer
 
 	TWDR = sub_addr;				// Sub address + Auto Increment
 	TWCR = (1<<TWINT)|(1<<TWEN);	// Start transmission
@@ -288,17 +288,25 @@ int main(void)
 		{
 			i = twi_read(IMU_ADDR, OUT_X_XL, data, 6);
 			
-			xi = ((int16_t)data[1] << 8) | data[0];
-			yi = ((int16_t)data[3] << 8) | data[2];
-			zi = ((int16_t)data[5] << 8) | data[4];
-				
-			x = (float) xi*ACCL_RESOL;
-			y = (float) yi*ACCL_RESOL;
+			xi = ((int16_t)data[1] << 8) | data[0];			// We first convert the byte to a word using (int16_t),
+			yi = ((int16_t)data[3] << 8) | data[2];			// then shift-left to 8-bits, making it an upper byte.
+			zi = ((int16_t)data[5] << 8) | data[4];			// Combine it with the lower-byte data. Note that if there are
+															// mixed types of data, the compiler follows the largest type.					
+			x = (float) xi*ACCL_RESOL;						// The LSB (least Sig Bit) of the Accel data is defined on 
+			y = (float) yi*ACCL_RESOL;						// page 12 (LSM9DS1) - 0.061mg/LSB for default 2g range.
 			z = (float) zi*ACCL_RESOL;
 
-			sprintf(str,"Accel(g): %.3f, %.3f, %.3f \r\n", x, y, z);
-			uart_putstr(str);
-			
+			char x_str[128];
+			char y_str[128];
+			char z_str[128];
+
+			dtostrf(x, 7, 4, x_str);
+			dtostrf(y, 7, 4, y_str);
+			dtostrf(z, 7, 4, z_str);
+
+			sprintf(str,"Accel(g): %s, %s, %s \r\n", x_str, y_str, z_str);	// You will see that the %f (floating-point) does not
+			uart_putstr(str);								// work in default to minimise the library size. You need to enable	
+															// the linker option as mentioned in the HLAB manual.
 			
 			//
 			// TASK 3: Read 6 bytes of Gyroscope (Device Address - 0x6B)

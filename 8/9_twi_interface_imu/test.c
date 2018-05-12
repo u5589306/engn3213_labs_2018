@@ -3,7 +3,7 @@
  *
  * Created: 4/28/2018 3:14:58 PM
  * Author : Jon Kim
- */ 
+ */
 
 #define F_CPU 20000000UL
 
@@ -40,8 +40,8 @@ void uart_putchar(unsigned char data)
 
 void uart_putstr(char *str)
 {
-	while(*str)						
-		uart_putchar(*str++);		
+	while(*str)
+		uart_putchar(*str++);
 }
 
 unsigned char get_char(void)
@@ -64,7 +64,7 @@ unsigned char get_char(void)
 void twi_init()
 {
 	PORTC = (1<<DDC5)|(1<<DDC4);	// writing 1 in an input mode enables the pull-up.
-	
+
 	// Set TWI clock to 100 kHz
 	//TWBR = 0x5C;	//92 = 0x5C
 	TWBR = ((F_CPU / 100000) - 16) / 2;
@@ -91,14 +91,14 @@ int twi_write(uint8_t addr, uint8_t sub_addr, uint8_t ch)
 	while (!(TWCR & (1<<TWINT)));		// Polling the Control Register (TWCR) to check TWINT-bit
 	if ((TWSR & 0xF8) != TW_START)
 		return -1;
-	
+
 	// 2. Send SLA+W (Write Mode)
 	TWDR = (addr << 1) | (TW_WRITE);	// Shift the SLA by one-bit and add Write-bit (0)
 	TWCR = (1<<TWINT)|(1<<TWEN);		// Clear the TWINT-bit by writing '1' and start transmission
 	while (!(TWCR & (1<<TWINT)));		// Polling the Control Register (TWCR) to check TWINT-bit
 	if ((TWSR & 0xF8) != TW_MT_SLA_ACK)
 		return -2;
-	
+
 	//	3. Send Data #1 (sub-address)
 	TWDR = sub_addr;					// Data #1 (sub-address)
 	TWCR = (1<<TWINT)|(1<<TWEN);		// Clear the TWINT-bit by writing '1' and start transmission
@@ -116,7 +116,7 @@ int twi_write(uint8_t addr, uint8_t sub_addr, uint8_t ch)
 	// 5. Stop condition
 	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO);
 	_delay_ms(1);						// Allow time for stop to send
-	
+
 	return 0;
 }
 
@@ -137,14 +137,14 @@ int twi_read(uint8_t addr, uint8_t sub_addr, uint8_t *data, uint8_t size)
 	while (!(TWCR & (1<<TWINT)));
 	if ((TWSR & 0xF8) != TW_START)
 		return -1;
-	
+
 	// 2. Send SLA+W (Write Mode)
 	TWDR = (addr << 1) | TW_WRITE;
 	TWCR = (1<<TWINT)|(1<<TWEN);
 	while (!(TWCR & (1<<TWINT)));
 	if ((TWSR & 0xF8) != TW_MT_SLA_ACK)
 		return -2;
-	
+
 	// 3. Send Data #1 (sub-address)
 	if (size>1)
 		sub_addr |= 0x80;			// This is specific to Magnetometer
@@ -154,13 +154,13 @@ int twi_read(uint8_t addr, uint8_t sub_addr, uint8_t *data, uint8_t size)
 	while (!(TWCR & (1<<TWINT)));
 	if ((TWSR & 0xF8) != TW_MT_DATA_ACK)
 		return -3;
-	
+
 	// 4. We need to change to Read mode so Re-start (repeated)
 	TWCR = (1<<TWINT) | (1<<TWSTA) | (1<<TWEN);
 	while (!(TWCR & 1<<TWINT));
 	if ((TWSR & 0xF8) != TW_REP_START)
 		return -4;
-	
+
 	// 5. Send SLA+R (Read mode)
 	TWDR = (addr << 1) | TW_READ;
 	TWCR = (1<<TWINT)|(1<<TWEN);
@@ -177,11 +177,11 @@ int twi_read(uint8_t addr, uint8_t sub_addr, uint8_t *data, uint8_t size)
 			while (!(TWCR & (1<<TWINT)));
 			if ((TWSR & 0xF8) != TW_MR_DATA_ACK)
 				return -6;
-			
+
 			*data++ = TWDR;
 		}
 	}
-	
+
 	// 6. Data #2 or #N (Read a byte). Last byte needs a NACK
 	TWCR = (1<<TWINT)|(1<<TWEN); // No TWEA (send NACK to the slave)
 	while (!(TWCR & (1<<TWINT)));
@@ -189,27 +189,43 @@ int twi_read(uint8_t addr, uint8_t sub_addr, uint8_t *data, uint8_t size)
 		return -7;
 
 	*data = TWDR; // last byte
-	
+
 	//  7. Stop
 	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO);
-	
+
 	_delay_ms(1);
-	
+
 	return 0;
 }
 
 ///////////////////////////////////////////////////////////////////////
 //
-// Some IMU Registers and Bit-definitions 
+// Some IMU Registers and Bit-definitions
 //		- IMU/Magnetometer LSM9DS1 datasheet
 //		- Barometer LPS25HB datasheet
 //
 ///////////////////////////////////////////////////////////////////////
 #define WHO_AM_I_M		0x0F
-#define MAG_ADDR		0x1E
-#define IMU_ADDR		0x6B	// LSM9DS1 datasheet @ page 30
-#define BARO_ADDR		0x5D	// LPS25HB datasheet @ page 25
 
+#define MAG_ADDR		0x1E
+#define STATUS_REG_M	0x27
+#define CTRL_REG1_M		0x20
+#define CTRL_REG3_M		0x22
+#define CTRL_REG4_M		0x23
+#define OUT_X_M			0x28
+
+#define BARO_ADDR		0x5D	// LPS25HB datasheet @ page 25
+#define RES_CONF		0x10
+#define STATUS_REG_B	0x27
+#define CTRL_REG1_B		0x20
+#define CTRL_REG2_B		0x21
+#define PRESS_OUT_XL	0x28
+#define PRESS_OUT_L		0x29
+#define PRESS_OUT_H		0x2A
+#define TEMP_OUT_L		0x2B
+#define TEMP_OUT_H		0x2C
+
+#define IMU_ADDR		0x6B	// LSM9DS1 datasheet @ page 30
 #define CTRL_REG1_G		0x10
 #define STATUS_REG		0x17
 #define OUT_X_G			0x18
@@ -224,32 +240,50 @@ int twi_read(uint8_t addr, uint8_t sub_addr, uint8_t *data, uint8_t size)
 #define ACCL_RESOL		(0.061*0.001)	// g
 #define GYRO_RESOL		(8.75*0.001)	// deg
 
+#define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
 
 ///////////////////////////////////////////////////////////////////////
 //
-// Main 
+// Main
 //
 ///////////////////////////////////////////////////////////////////////
 int main(void)
 {
     char str[200];
-    uint8_t data[12], temp;
-    int16_t xi,yi,zi;
-	float x,y,z;
+    
+	uint8_t data[12], temp;
+	uint8_t presOutXL, presOutL, presOutH;
+	uint8_t tempOut_L, tempOut_H;
 
+    int16_t xi, yi, zi;
+	int16_t temperaturei;
+	
+	long pres_long;
+	
+	float pres;
+	float temperature;
+	float x_XL, x_G, x_M;
+	float y_XL, y_G, y_M;
+	float z_XL, z_G, z_M;
+
+	char x_str[128];
+	char y_str[128];
+	char z_str[128];
+	char pres_str[128];
+	char temp_str[128];
 
 	DDRB |= 1<<DDB1; // Set PB1 as output
 
 	uart_init();
 	uart_putstr("\033c");		// ASCII code clear screen: 'Escape'('\033' in octal)+'c')
 	uart_putstr("UART initialised - 115.2Kbps\r\n");
-	
+
 	twi_init();
 	uart_putstr("TWI initialised - 100Kbps\r\n");
-	 
+
 	// Read the IMU "Who_Am_I" register (0x0F) to confirm the ID (0x68)
 	int i = twi_read(IMU_ADDR, 0x0F, &temp, 1);
-	sprintf(str,"ID IMU: Who Am I = [0x%2X]\r\n",temp);		
+	sprintf(str,"ID IMU: Who Am I = [0x%2X]\r\n",temp);
 	uart_putstr(str);
 
 	// Read the Magnetometer "Who_Am_I" register (0x0F) to confirm the ID (0x3D)
@@ -271,56 +305,109 @@ int main(void)
 	//	- CTRL_REG1 (0x20): set x-y to high performance mode + set output rate (10hz)
 	//	- CTRL_REG3 (0x22) - set the continuous conversion
 	//	- CTRL_REG4 (0x23) - set z to high-performance mode
-	
+
+	temp = 0b01010000;
+	twi_write(MAG_ADDR, CTRL_REG1_M, temp);
+
+	temp = 0b00000000;
+	twi_write(MAG_ADDR, CTRL_REG3_M, temp);
+
+	temp = 0b00001000;
+	twi_write(MAG_ADDR, CTRL_REG4_M, temp);
+
 	//
 	// TASK 2: Initialise Barometer here (Device Address - 0x5D)
 	//	- CTRL_REG1 (0x20): set PD (power down control-active) + set output rate (12.5hz)
-	
 
-	uart_putstr("Three I2C device IDs are read...\r\n");
-	uart_putstr("Press any key to read Accelerometer data...\r\n");
-	temp = get_char();
+	// temp = 0b10110000;
+	// twi_write(BARO_ADDR, CTRL_REG1_B, temp);
+	temp = 0b1010;
+	twi_write(BARO_ADDR, RES_CONF, temp);
+	temp = 0b10001100;
+	twi_write(BARO_ADDR, CTRL_REG1_B, temp);
 	
-    while (1) 
+	uart_putstr("Three I2C device IDs are read...\r\n");
+	uart_putstr("Press any key to read Accelerometer data...\r\n\n");
+	temp = get_char();
+
+    while (1)
     {
 		i = twi_read(IMU_ADDR, STATUS_REG, &temp, 1);
 		if (temp == 0x7)	// data ready
 		{
 			i = twi_read(IMU_ADDR, OUT_X_XL, data, 6);
-			
+
 			xi = ((int16_t)data[1] << 8) | data[0];			// We first convert the byte to a word using (int16_t),
 			yi = ((int16_t)data[3] << 8) | data[2];			// then shift-left to 8-bits, making it an upper byte.
 			zi = ((int16_t)data[5] << 8) | data[4];			// Combine it with the lower-byte data. Note that if there are
-															// mixed types of data, the compiler follows the largest type.					
-			x = (float) xi*ACCL_RESOL;						// The LSB (least Sig Bit) of the Accel data is defined on 
-			y = (float) yi*ACCL_RESOL;						// page 12 (LSM9DS1) - 0.061mg/LSB for default 2g range.
-			z = (float) zi*ACCL_RESOL;
+															// mixed types of data, the compiler follows the largest type.
+			x_XL = (float) xi*ACCL_RESOL;						// The LSB (least Sig Bit) of the Accel data is defined on
+			y_XL = (float) yi*ACCL_RESOL;						// page 12 (LSM9DS1) - 0.061mg/LSB for default 2g range.
+			z_XL = (float) zi*ACCL_RESOL;
 
-			char x_str[128];
-			char y_str[128];
-			char z_str[128];
+			dtostrf(x_XL, 7, 4, x_str);
+			dtostrf(y_XL, 7, 4, y_str);
+			dtostrf(z_XL, 7, 4, z_str);
 
-			dtostrf(x, 7, 4, x_str);
-			dtostrf(y, 7, 4, y_str);
-			dtostrf(z, 7, 4, z_str);
+			sprintf(str,"Acceleration (g): \t %s, %s, %s \r\n", x_str, y_str, z_str);	// You will see that the %f (floating-point) does not
+			uart_putstr(str);										// work in default to minimise the library size. You need to enable
+																	// the linker option as mentioned in the HLAB manual.
 
-			sprintf(str,"Accel(g): %s, %s, %s \r\n", x_str, y_str, z_str);	// You will see that the %f (floating-point) does not
-			uart_putstr(str);								// work in default to minimise the library size. You need to enable	
-															// the linker option as mentioned in the HLAB manual.
-			
 			//
 			// TASK 3: Read 6 bytes of Gyroscope (Device Address - 0x6B)
 			//	- Read 6 bytes starting from OUT_X_G (Output X-axis Gyro) at 0x18
 			//	- Combine two bytes into an int16_t, and then a float with resolution
 			//  - Display to UART terminal
 
+			twi_read(IMU_ADDR, OUT_X_G, data, 6);
+
+			xi = ((int16_t)data[1] << 8) | data[0];			// We first convert the byte to a word using (int16_t),
+			yi = ((int16_t)data[3] << 8) | data[2];			// then shift-left to 8-bits, making it an upper byte.
+			zi = ((int16_t)data[5] << 8) | data[4];			// Combine it with the lower-byte data. Note that if there are
+															// mixed types of data, the compiler follows the largest type.
+			x_G = (float) xi*GYRO_RESOL;						// The LSB (least Sig Bit) of the Accel data is defined on
+			y_G = (float) yi*GYRO_RESOL;						// page 12 (LSM9DS1) - 0.061mg/LSB for default 2g range.
+			z_G = (float) zi*GYRO_RESOL;
+
+			dtostrf(x_G, 7, 4, x_str);
+			dtostrf(y_G, 7, 4, y_str);
+			dtostrf(z_G, 7, 4, z_str);
+
+			sprintf(str,"Gyro (deg): \t %s, %s, %s \r\n", x_str, y_str, z_str);	// You will see that the %f (floating-point) does not
+			uart_putstr(str);										// work in default to minimise the library size. You need to enable
+																	// the linker option as mentioned in the HLAB manual.
 			//
 			// TASK 4: Read 6 bytes of Magnetometer (Device Address - 0x1E)
 			//	- Read a byte from the Status register (0x27) to check data ready
 			//	- Read 6 bytes starting from OUT_X_M (Output X-axis Mag) at 0x28
 			//	- Combine two bytes into an int16_t, and then a float with resolution
 			//  - Display to UART terminal
-				
+
+			twi_read(MAG_ADDR, STATUS_REG_M, &temp, 1);
+			if (CHECK_BIT(temp, 2) &&  CHECK_BIT(temp, 1) && CHECK_BIT(temp, 0)){
+				twi_read(MAG_ADDR, OUT_X_M, data, 6);
+
+				xi = ((int16_t)data[1] << 8) | data[0];			// We first convert the byte to a word using (int16_t),
+				yi = ((int16_t)data[3] << 8) | data[2];			// then shift-left to 8-bits, making it an upper byte.
+				zi = ((int16_t)data[5] << 8) | data[4];			// Combine it with the lower-byte data. Note that if there are
+																// mixed types of data, the compiler follows the largest type.
+				x_M = (float) -1 * xi*MAG_RESOL;						// The LSB (least Sig Bit) of the Accel data is defined on
+				y_M = (float) yi*MAG_RESOL;						// page 12 (LSM9DS1) - 0.061mg/LSB for default 2g range.
+				z_M = (float) zi*MAG_RESOL;
+
+				dtostrf(x_M, 7, 4, x_str);
+				dtostrf(y_M, 7, 4, y_str);
+				dtostrf(z_M, 7, 4, z_str);
+
+				sprintf(str,"mag (gauss): \t %s, %s, %s \r\n", x_str, y_str, z_str);	// You will see that the %f (floating-point) does not
+				uart_putstr(str);										// work in default to minimise the library size. You need to 
+			}
+			else{
+				sprintf(str, "GYRO status: %d \r\n", temp);
+				uart_putstr(str);
+			}
+
+
 			//
 			// TASK 5: Read 5 bytes of Barometer (Device Address - 0x5D)
 			//	- Read a byte from the Status register (0x27) to check data ready
@@ -328,12 +415,52 @@ int main(void)
 			//	- Combine three bytes (pressure) into an int32_t, and convert to hPa (Page 15)
 			//	- Combine two bytes (temperature) into an int16_t, and convert to deg (C) (Page 9)
 			//  - Display to UART terminal
-		
-			
-		}	
-		
-		PORTB ^= (1<<PORTB1); 
-		_delay_ms(200);		
+			temp = 1;
+			twi_write(BARO_ADDR, CTRL_REG2_B, temp);
+			_delay_ms(100);
+			twi_read(BARO_ADDR, STATUS_REG_B, &temp, 1);
+			sprintf(str, "barometer \& temperature status: 0x%X\n\r", temp);
+			uart_putstr(str);
+
+			if (CHECK_BIT(temp, 1)){  // pressure data is available
+				twi_read(BARO_ADDR, PRESS_OUT_XL, &presOutXL, 1);
+				twi_read(BARO_ADDR, PRESS_OUT_L, &presOutL, 1);
+				twi_read(BARO_ADDR, PRESS_OUT_H, &presOutH, 1);
+				
+				pres_long = ( ((long)presOutH << 24) | ((long)presOutL << 16) | ((long)presOutXL << 8)) >> 8;
+				pres = pres_long / 4096.0;
+
+				dtostrf(pres, 7, 4, pres_str);
+				sprintf(str, "Pressure: %s \r\n", pres_str);
+				uart_putstr(str);
+			} else{
+				sprintf(str, "BARO status: %X \r\n", temp);
+				uart_putstr(str);
+			}
+
+			if (CHECK_BIT(temp, 0)){
+				twi_read(BARO_ADDR, TEMP_OUT_L, &tempOut_L, 1);
+				twi_read(BARO_ADDR, TEMP_OUT_H, &tempOut_H, 1);
+
+				temperaturei = ((int16_t)tempOut_H << 8) | tempOut_L && 0xFF;
+				temperature = temperaturei;
+
+				dtostrf(temperature, 7, 4, temp_str);
+
+				sprintf(str, "Temperature: %s \r\n", temp_str);
+				uart_putstr(str);
+			} else{
+				sprintf(str, "TEMP status: %X \r\n", temp);
+				uart_putstr(str);
+			}
+
+			twi_read(BARO_ADDR, STATUS_REG_B, &temp, 1);
+			sprintf(str, "barometer \& temperature status: 0x%X\n\n\r", temp);
+			uart_putstr(str);
+		}
+
+		PORTB ^= (1<<PORTB1);
+		_delay_ms(1000);
     }
 }
 
